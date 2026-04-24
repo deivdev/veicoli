@@ -1,0 +1,90 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.detail ?? "Credenziali non valide");
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    } catch {
+      setError("Errore di connessione");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-4"
+      >
+        <div>
+          <h1 className="text-2xl font-semibold">Veicoli</h1>
+          <p className="text-sm text-slate-500">Accedi per continuare</p>
+        </div>
+
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Email</span>
+          <input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-slate-900 focus:outline-none"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-slate-700">Password</span>
+          <input
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-slate-900 focus:outline-none"
+          />
+        </label>
+
+        {error && <div className="text-sm text-crit">{error}</div>}
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full rounded-lg bg-slate-900 text-white py-2 font-medium hover:bg-slate-800 disabled:opacity-50"
+        >
+          {loading ? "Accesso..." : "Accedi"}
+        </button>
+
+        <div className="text-sm text-center text-slate-500">
+          Non hai un account?{" "}
+          <Link href="/register" className="text-slate-900 font-medium hover:underline">
+            Registrati
+          </Link>
+        </div>
+      </form>
+    </div>
+  );
+}

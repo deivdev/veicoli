@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 
 
 class _OutBase(BaseModel):
@@ -99,3 +99,25 @@ class OdometerIn(BaseModel):
 
 class OdometerOut(_OutBase, OdometerIn):
     pass
+
+
+# Fuel (rifornimento)
+class FuelLogIn(BaseModel):
+    filled_on: date
+    km: int | None = None
+    # Litri in millilitri (int): 50 L -> 50000. Frontend converte come gli euro.
+    milliliters: int
+    amount_cents: int | None = None
+    is_full_tank: bool = True
+    station: str | None = None
+    notes: str | None = None
+
+
+class FuelLogOut(_OutBase, FuelLogIn):
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def price_per_liter_cents(self) -> int | None:
+        """Prezzo al litro derivato (centesimi). Solo display."""
+        if self.amount_cents is None or self.milliliters <= 0:
+            return None
+        return round(self.amount_cents * 1000 / self.milliliters)

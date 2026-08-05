@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Camera } from "lucide-react";
 import type { Vehicle } from "@/lib/types";
-import { Button } from "./ui";
 
 export function PhotoUpload({ vehicle }: { vehicle: Vehicle }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,7 +35,7 @@ export function PhotoUpload({ vehicle }: { vehicle: Vehicle }) {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="shrink-0">
       <input
         ref={inputRef}
         type="file"
@@ -46,14 +46,32 @@ export function PhotoUpload({ vehicle }: { vehicle: Vehicle }) {
           if (f) handleFile(f);
         }}
       />
-      <Button
-        variant="secondary"
+      <button
+        type="button"
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
+        aria-label={vehicle.photo_path ? "Cambia foto" : "Carica foto"}
+        className="group relative block w-48 aspect-[16/9] bg-slate-100 rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:opacity-60"
       >
-        {uploading ? "Caricamento..." : vehicle.photo_path ? "Cambia foto" : "Carica foto"}
-      </Button>
-      {error && <span className="text-sm text-crit">{error}</span>}
+        {vehicle.photo_path ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/photo/${vehicle.photo_path}`}
+            alt={`${vehicle.make} ${vehicle.model}`}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center gap-1 text-slate-400">
+            <Camera size={24} />
+            <span className="text-sm">Carica foto</span>
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-black/0 text-transparent group-hover:bg-black/40 group-hover:text-white transition-colors text-sm font-medium">
+          <Camera size={18} />
+          {uploading ? "Caricamento..." : vehicle.photo_path ? "Cambia foto" : "Carica foto"}
+        </div>
+      </button>
+      {error && <span className="mt-1 block text-sm text-crit">{error}</span>}
     </div>
   );
 }

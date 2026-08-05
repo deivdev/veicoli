@@ -8,6 +8,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    FuelLog,
     Inspection,
     Insurance,
     OdometerReading,
@@ -58,6 +59,87 @@ def _latest_by_expiry(db: Session, model, vehicle_id: int, expiry_col, amount_co
         return None, None
     amount = getattr(row, amount_col.key, None) if amount_col is not None else None
     return getattr(row, expiry_col.key), amount
+
+
+def compute_fuel_stats(db: Session, vehicle_id: int) -> dict:
+    """Consumi col metodo full-to-full.
+
+    Tra due pieni consecutivi: litri (di tutti i rifornimenti dopo il primo
+    pieno, fino al secondo incluso) / km percorsi. I parziali confluiscono nel
+    segmento. Il primo pieno fa solo da baseline (non sappiamo i km prima).
+    """
+    logs = (
+        db.query(FuelLog)
+        .filter(FuelLog.vehicle_id == vehicle_id)
+        .order_by(FuelLog.filled_on, FuelLog.id)
+        .all()
+    )
+
+    total_ml = sum(log.milliliters for log in logs)
+    total_cents = sum(log.amount_cents for log in logs if log.amount_cents is not None)
+
+    base = {
+        "fillups_count": len(logs),
+        "total_amount_cents": total_cents or None,
+        "total_milliliters": total_ml or None,
+        "avg_l_per_100km": None,
+        "avg_km_per_l": None,
+        "cost_per_km_cents": None,
+        "last_l_per_100km": None,
+    }
+    if not logs:
+        return base
+
+    # Solo rifornimenti con km noti contano per i consumi.
+    with_km = [log for log in logs if log.km is not None]
+
+    seg_km_total = 0           # km percorsi su segmenti chiusi full->full
+    seg_ml_total = 0           # litri (ml) bruciati su quei segmenti
+    seg_cost_total = 0         # spesa su quei segmenti
+    last_seg_l_per_100km: float | None = None
+
+    prev_full_idx: int | None = None
+    pending_ml = 0             # litri accumulati dai parziali nel segmento corrente
+    pending_cost = 0
+    pending_cost_known = True
+
+    for i, log in enumerate(with_km):
+        if not log.is_full_tank:
+            pending_ml += log.milliliters
+            if log.amount_cents is None:
+                pending_cost_known = False
+            else:
+                pending_cost += log.amount_cents
+            continue
+
+        # Pieno: chiude un segmento se avevamo già un pieno precedente.
+        seg_ml = pending_ml + log.milliliters
+        seg_cost = pending_cost + (log.amount_cents or 0)
+        seg_cost_known = pending_cost_known and log.amount_cents is not None
+
+        if prev_full_idx is not None:
+            km = with_km[i].km - with_km[prev_full_idx].km
+            if km > 0 and seg_ml > 0:
+                seg_km_total += km
+                seg_ml_total += seg_ml
+                last_seg_l_per_100km = (seg_ml / 1000) / km * 100
+                if seg_cost_known:
+                    seg_cost_total += seg_cost
+
+        prev_full_idx = i
+        pending_ml = 0
+        pending_cost = 0
+        pending_cost_known = True
+
+    if seg_km_total > 0 and seg_ml_total > 0:
+        liters = seg_ml_total / 1000
+        base["avg_l_per_100km"] = round(liters / seg_km_total * 100, 2)
+        base["avg_km_per_l"] = round(seg_km_total / liters, 2)
+        base["last_l_per_100km"] = round(last_seg_l_per_100km, 2)
+        if seg_cost_total > 0:
+            base["cost_per_km_cents"] = round(seg_cost_total / seg_km_total, 2)
+
+    return base
 
 
 def compute_status(db: Session, vehicle_id: int, today: date | None = None) -> dict:
@@ -117,4 +199,5 @@ def compute_status(db: Session, vehicle_id: int, today: date | None = None) -> d
         "service": mk(svc_due, svc_amount),
         "tires": mk(tire_due, tire_amount),
         "current_km": current_km,
+        "fuel": compute_fuel_stats(db, vehicle_id),
     }

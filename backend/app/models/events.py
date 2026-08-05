@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -97,4 +97,20 @@ class OdometerReading(_EventBase, Base):
     )
     reading_date: Mapped[date] = mapped_column(Date, nullable=False)
     km: Mapped[int] = mapped_column(Integer, nullable=False)
+    notes: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
+class FuelLog(_EventBase, Base):
+    __tablename__ = "fuel_logs"
+    vehicle_id: Mapped[int] = mapped_column(
+        ForeignKey("vehicles.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    filled_on: Mapped[date] = mapped_column(Date, nullable=False)
+    km: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Litri memorizzati in millilitri (int) per evitare drift dei float.
+    milliliters: Mapped[int] = mapped_column(Integer, nullable=False)
+    amount_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Pieno: serve per calcolare i consumi tra due rifornimenti completi.
+    is_full_tank: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    station: Mapped[str | None] = mapped_column(String, nullable=True)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)

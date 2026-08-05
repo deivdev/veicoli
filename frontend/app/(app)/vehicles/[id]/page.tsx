@@ -2,40 +2,17 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight } from "lucide-react";
 import { apiClient } from "@/lib/api";
-import { EntityTab } from "@/components/entity-tab";
-import { ExpiryBadge } from "@/components/expiry-badge";
 import { PhotoUpload } from "@/components/photo-upload";
 import { cn } from "@/lib/utils";
-import type { Vehicle, VehicleStatus } from "@/lib/types";
-import {
-  inspectionConfig,
-  insuranceConfig,
-  odometerConfig,
-  roadTaxConfig,
-  serviceConfig,
-  tireChangeConfig,
-  tireRotationConfig,
-} from "@/lib/entity-configs";
-
-const TABS = [
-  { key: "overview", label: "Panoramica" },
-  { key: "insurance", label: "Assicurazione" },
-  { key: "inspection", label: "Revisione" },
-  { key: "road_tax", label: "Bollo" },
-  { key: "service", label: "Tagliando" },
-  { key: "tires", label: "Gomme" },
-  { key: "odometer", label: "Chilometri" },
-] as const;
-
-type TabKey = (typeof TABS)[number]["key"];
+import { SECTIONS } from "@/lib/sections";
+import type { ExpiryInfo, Vehicle, VehicleStatus } from "@/lib/types";
 
 export default function VehicleDetailPage() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
-  const [tab, setTab] = useState<TabKey>("overview");
 
   const vehicleQ = useQuery<Vehicle>({
     queryKey: ["vehicle", id],
@@ -49,24 +26,12 @@ export default function VehicleDetailPage() {
 
   if (vehicleQ.isLoading || !vehicleQ.data) return <p>Caricamento...</p>;
   const v = vehicleQ.data;
+  const status = statusQ.data;
 
   return (
     <div>
-      <div className="flex items-start gap-6 mb-6">
-        <div className="w-48 aspect-[16/9] bg-slate-100 rounded-xl overflow-hidden shrink-0">
-          {v.photo_path ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/api/photo/${v.photo_path}`}
-              alt={`${v.make} ${v.model}`}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
-              Nessuna foto
-            </div>
-          )}
-        </div>
+      <div className="flex flex-col sm:flex-row items-start gap-6 mb-6">
+        <PhotoUpload vehicle={v} />
         <div className="flex-1">
           <h1 className="text-2xl font-semibold">
             {v.make} {v.model}
@@ -74,12 +39,11 @@ export default function VehicleDetailPage() {
           <p className="text-slate-500">
             {v.plate}
             {v.year ? ` · ${v.year}` : ""}
-            {statusQ.data?.current_km != null
-              ? ` · ${statusQ.data.current_km.toLocaleString("it-IT")} km`
+            {status?.current_km != null
+              ? ` · ${status.current_km.toLocaleString("it-IT")} km`
               : ""}
           </p>
           <div className="mt-3 flex gap-2">
-            <PhotoUpload vehicle={v} />
             <Link
               href={`/vehicles/${id}/edit`}
               className="rounded-lg bg-white border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-50"
@@ -90,63 +54,103 @@ export default function VehicleDetailPage() {
         </div>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200 mb-6 overflow-x-auto">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px",
-              tab === t.key
-                ? "border-slate-900 text-slate-900"
-                : "border-transparent text-slate-500 hover:text-slate-900"
-            )}
-          >
-            {t.label}
-          </button>
+      {/* Hub: ogni card apre la sotto-pagina della sezione. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+        {SECTIONS.map((s) => (
+          <SectionCard
+            key={s.slug}
+            href={`/vehicles/${id}/${s.slug}`}
+            label={s.label}
+            info={s.statusKey && status ? status[s.statusKey] : null}
+            detail={sectionDetail(s.slug, status)}
+          />
         ))}
       </div>
 
-      {tab === "overview" && statusQ.data && <Overview status={statusQ.data} vehicle={v} />}
-      {tab === "insurance" && <EntityTab vehicleId={id} config={insuranceConfig} />}
-      {tab === "inspection" && <EntityTab vehicleId={id} config={inspectionConfig} />}
-      {tab === "road_tax" && <EntityTab vehicleId={id} config={roadTaxConfig} />}
-      {tab === "service" && <EntityTab vehicleId={id} config={serviceConfig} />}
-      {tab === "tires" && (
-        <div className="space-y-10">
-          <EntityTab vehicleId={id} config={tireChangeConfig} />
-          <EntityTab vehicleId={id} config={tireRotationConfig} />
+      <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-white rounded-xl border border-slate-200 p-4">
+        <Info label="Tipo" value={labelVehicleType(v.vehicle_type)} />
+        <Info label="Alimentazione" value={labelFuel(v.fuel_type)} />
+        <Info label="Immatricolazione" value={v.registration_date ?? "—"} />
+        <Info label="VIN" value={v.vin ?? "—"} />
+      </dl>
+      {v.notes && (
+        <div className="mt-6 bg-white rounded-xl border border-slate-200 p-4">
+          <div className="text-sm font-medium text-slate-500 mb-1">Note</div>
+          <p className="text-sm whitespace-pre-wrap">{v.notes}</p>
         </div>
       )}
-      {tab === "odometer" && <EntityTab vehicleId={id} config={odometerConfig} />}
     </div>
   );
 }
 
-function Overview({ status, vehicle }: { status: VehicleStatus; vehicle: Vehicle }) {
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <ExpiryBadge info={status.insurance} title="Assicurazione" />
-        <ExpiryBadge info={status.inspection} title="Revisione" />
-        <ExpiryBadge info={status.road_tax} title="Bollo" />
-        <ExpiryBadge info={status.service} title="Tagliando" />
-        <ExpiryBadge info={status.tires} title="Gomme" />
-      </div>
+const badgeStyles: Record<ExpiryInfo["status"], string> = {
+  ok: "bg-ok-bg text-ok",
+  warning: "bg-warn-bg text-warn",
+  critical: "bg-crit-bg text-crit",
+  unknown: "bg-slate-100 text-slate-500",
+};
 
-      <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-white rounded-xl border border-slate-200 p-4">
-        <Info label="Tipo" value={labelVehicleType(vehicle.vehicle_type)} />
-        <Info label="Alimentazione" value={labelFuel(vehicle.fuel_type)} />
-        <Info label="Immatricolazione" value={vehicle.registration_date ?? "—"} />
-        <Info label="VIN" value={vehicle.vin ?? "—"} />
-      </dl>
-      {vehicle.notes && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="text-sm font-medium text-slate-500 mb-1">Note</div>
-          <p className="text-sm whitespace-pre-wrap">{vehicle.notes}</p>
-        </div>
-      )}
-    </div>
+function expiryLabel(info: ExpiryInfo): string {
+  const d = info.days_until;
+  if (!info.due_date || d == null) return "Nessun dato";
+  if (d < 0) return `Scaduto da ${-d}g`;
+  if (d === 0) return "Scade oggi";
+  if (d === 1) return "Scade domani";
+  return `Tra ${d}g`;
+}
+
+function sectionDetail(slug: string, status: VehicleStatus | undefined): string | null {
+  if (!status) return null;
+  if (slug === "carburante") {
+    if (status.fuel && status.fuel.avg_l_per_100km != null) {
+      return `${status.fuel.avg_l_per_100km} L/100km`;
+    }
+    return null;
+  }
+  if (slug === "chilometri") {
+    return status.current_km != null
+      ? `${status.current_km.toLocaleString("it-IT")} km`
+      : null;
+  }
+  return null;
+}
+
+function SectionCard({
+  href,
+  label,
+  info,
+  detail,
+}: {
+  href: string;
+  label: string;
+  info: ExpiryInfo | null;
+  detail: string | null;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center justify-between gap-3 bg-white rounded-xl border border-slate-200 p-4 hover:border-slate-400 hover:shadow-sm transition"
+    >
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-slate-900">{label}</div>
+        {info ? (
+          <span
+            className={cn(
+              "mt-1 inline-block rounded px-2 py-0.5 text-xs font-medium",
+              badgeStyles[info.status]
+            )}
+          >
+            {expiryLabel(info)}
+          </span>
+        ) : (
+          <div className="mt-1 text-xs text-slate-500">{detail ?? "—"}</div>
+        )}
+      </div>
+      <ChevronRight
+        size={18}
+        className="shrink-0 text-slate-300 group-hover:text-slate-500"
+      />
+    </Link>
   );
 }
 

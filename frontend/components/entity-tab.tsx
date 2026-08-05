@@ -3,10 +3,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiClient } from "@/lib/api";
-import { centsFromInput, centsToInput, formatDate, formatMoney } from "@/lib/format";
+import {
+  centsFromInput,
+  centsToInput,
+  formatDate,
+  formatLiters,
+  formatMoney,
+  litersFromInput,
+  litersToInput,
+} from "@/lib/format";
 import { Button, Field, Input, Select, Textarea } from "./ui";
 
-export type FieldType = "date" | "text" | "number" | "money" | "textarea" | "select";
+export type FieldType =
+  | "date"
+  | "text"
+  | "number"
+  | "money"
+  | "liters"
+  | "boolean"
+  | "textarea"
+  | "select";
 
 export type FieldDef = {
   key: string;
@@ -14,6 +30,7 @@ export type FieldDef = {
   type: FieldType;
   required?: boolean;
   options?: { value: string; label: string }[];
+  default?: string; // valore iniziale per i campi boolean ("true"/"false")
 };
 
 export type EntityConfig<T> = {
@@ -25,7 +42,7 @@ export type EntityConfig<T> = {
 
 function defaultValuesForCreate(fields: FieldDef[]): Record<string, string> {
   const v: Record<string, string> = {};
-  for (const f of fields) v[f.key] = "";
+  for (const f of fields) v[f.key] = f.type === "boolean" ? (f.default ?? "false") : "";
   return v;
 }
 
@@ -35,9 +52,13 @@ function valuesFromRow<T>(fields: FieldDef[], row: T): Record<string, string> {
   for (const f of fields) {
     const raw = r[f.key];
     if (raw == null) {
-      v[f.key] = "";
+      v[f.key] = f.type === "boolean" ? "false" : "";
     } else if (f.type === "money") {
       v[f.key] = centsToInput(raw as number);
+    } else if (f.type === "liters") {
+      v[f.key] = litersToInput(raw as number);
+    } else if (f.type === "boolean") {
+      v[f.key] = raw ? "true" : "false";
     } else {
       v[f.key] = String(raw);
     }
@@ -49,12 +70,17 @@ function payloadFromValues(fields: FieldDef[], values: Record<string, string>) {
   const out: Record<string, unknown> = {};
   for (const f of fields) {
     const raw = values[f.key];
+    if (f.type === "boolean") {
+      out[f.key] = raw === "true";
+      continue;
+    }
     if (raw === "" || raw == null) {
       if (!f.required) out[f.key] = null;
       continue;
     }
     if (f.type === "number") out[f.key] = Number(raw);
     else if (f.type === "money") out[f.key] = centsFromInput(raw);
+    else if (f.type === "liters") out[f.key] = litersFromInput(raw);
     else out[f.key] = raw;
   }
   return out;
@@ -204,9 +230,11 @@ function renderCell<T>(
   const key = String(col);
   const field = fields.find((f) => f.key === key);
   const value = (row as Record<string, unknown>)[key];
+  if (field?.type === "boolean") return value ? "Sì" : "No";
   if (value == null || value === "") return <span className="text-slate-400">—</span>;
   if (field?.type === "date") return formatDate(String(value));
   if (field?.type === "money") return formatMoney(Number(value));
+  if (field?.type === "liters") return formatLiters(Number(value));
   return String(value);
 }
 
@@ -268,16 +296,24 @@ function EntityDialog<T>({
                     </option>
                   ))}
                 </Select>
+              ) : f.type === "boolean" ? (
+                <Select
+                  value={values[f.key] ?? "false"}
+                  onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
+                >
+                  <option value="true">Sì</option>
+                  <option value="false">No</option>
+                </Select>
               ) : (
                 <Input
                   type={
                     f.type === "date"
                       ? "date"
-                      : f.type === "number" || f.type === "money"
+                      : f.type === "number" || f.type === "money" || f.type === "liters"
                       ? "number"
                       : "text"
                   }
-                  step={f.type === "money" ? "0.01" : undefined}
+                  step={f.type === "money" || f.type === "liters" ? "0.01" : undefined}
                   required={f.required}
                   value={values[f.key] ?? ""}
                   onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}

@@ -1,5 +1,7 @@
 import type { EntityConfig } from "@/components/entity-tab";
+import { formatMoney } from "./format";
 import type {
+  FuelLog,
   Inspection,
   Insurance,
   OdometerReading,
@@ -106,4 +108,35 @@ export const odometerConfig: EntityConfig<OdometerReading> = {
     { key: "notes", label: "Note", type: "textarea" },
   ],
   columns: ["reading_date", "km"],
+};
+
+export const fuelConfig: EntityConfig<FuelLog> = {
+  title: "Rifornimenti",
+  endpoint: "fuel-logs",
+  fields: [
+    { key: "filled_on", label: "Data", type: "date", required: true },
+    { key: "km", label: "Chilometraggio", type: "number" },
+    { key: "milliliters", label: "Litri", type: "liters", required: true },
+    { key: "amount_cents", label: "Importo (€)", type: "money" },
+    {
+      key: "is_full_tank",
+      label: "Pieno",
+      type: "boolean",
+      default: "true",
+    },
+    { key: "station", label: "Distributore", type: "text" },
+    { key: "notes", label: "Note", type: "textarea" },
+  ],
+  columns: [
+    "filled_on",
+    "km",
+    "milliliters",
+    "amount_cents",
+    {
+      header: "€/litro",
+      render: (r) =>
+        r.price_per_liter_cents != null ? formatMoney(r.price_per_liter_cents) : "—",
+    },
+    "is_full_tank",
+  ],
 };

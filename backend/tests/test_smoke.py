@@ -69,6 +69,7 @@ def test_all_entities_crud(client):
         "tire-changes": {"changed_on": today},
         "tire-rotations": {"rotated_on": today},
         "odometer": {"reading_date": today, "km": 12345},
+        "fuel-logs": {"filled_on": today, "milliliters": 40000, "amount_cents": 6800},
     }
 
     for ep, payload in entities.items():
@@ -77,3 +78,49 @@ def test_all_entities_crud(client):
         r = client.get(f"/api/vehicles/{vid}/{ep}", headers=h)
         assert r.status_code == 200
         assert len(r.json()) == 1
+
+
+def test_fuel_price_per_liter_and_consumption(client):
+    h = _auth(client)
+    vid = client.post(
+        "/api/vehicles",
+        headers=h,
+        json={"plate": "FU3LXX", "make": "Fiat", "model": "Punto"},
+    ).json()["id"]
+
+    # Prezzo/litro derivato: 50 L (50000 ml) per 80,00 € (8000 cent) -> 160 cent/L.
+    r = client.post(
+        "/api/vehicles/{}/fuel-logs".format(vid),
+        headers=h,
+        json={
+            "filled_on": "2026-01-01",
+            "km": 10000,
+            "milliliters": 50000,
+            "amount_cents": 8000,
+            "is_full_tank": True,
+        },
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["price_per_liter_cents"] == 160
+
+    # Secondo pieno: +500 km, 30 L bruciati -> 6 L/100km.
+    r = client.post(
+        "/api/vehicles/{}/fuel-logs".format(vid),
+        headers=h,
+        json={
+            "filled_on": "2026-01-15",
+            "km": 10500,
+            "milliliters": 30000,
+            "amount_cents": 4800,
+            "is_full_tank": True,
+        },
+    )
+    assert r.status_code == 201, r.text
+
+    fuel = client.get(f"/api/vehicles/{vid}/status", headers=h).json()["fuel"]
+    assert fuel["fillups_count"] == 2
+    assert fuel["avg_l_per_100km"] == 6.0
+    assert fuel["last_l_per_100km"] == 6.0
+    assert fuel["total_amount_cents"] == 12800
+    # Costo/km: solo segmenti chiusi -> 4800 cent / 500 km = 9.6 cent/km.
+    assert fuel["cost_per_km_cents"] == 9.6

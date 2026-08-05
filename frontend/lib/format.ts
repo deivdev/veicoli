@@ -24,3 +24,22 @@ export function centsToInput(cents: number | null | undefined): string {
   if (cents == null) return "";
   return (cents / 100).toFixed(2);
 }
+
+// Litri memorizzati in millilitri (es. 50 L -> 50000), come gli euro coi centesimi.
+export function litersFromInput(value: string): number | null {
+  const v = value.trim().replace(",", ".");
+  if (!v) return null;
+  const n = Number(v);
+  if (isNaN(n)) return null;
+  return Math.round(n * 1000);
+}
+
+export function litersToInput(ml: number | null | undefined): string {
+  if (ml == null) return "";
+  return (ml / 1000).toFixed(2);
+}
+
+export function formatLiters(ml: number | null | undefined): string {
+  if (ml == null) return "—";
+  return `${(ml / 1000).toLocaleString("it-IT", { maximumFractionDigits: 2 })} L`;
+}

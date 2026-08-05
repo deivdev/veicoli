@@ -8,6 +8,7 @@ from app.models.events import (
     TireChange,
     TireRotation,
     OdometerReading,
+    FuelLog,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "TireChange",
     "TireRotation",
     "OdometerReading",
+    "FuelLog",
 ]

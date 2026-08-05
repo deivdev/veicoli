@@ -24,6 +24,16 @@ export interface ExpiryInfo {
   last_amount_cents: number | null;
 }
 
+export interface FuelStats {
+  fillups_count: number;
+  total_amount_cents: number | null;
+  total_milliliters: number | null;
+  avg_l_per_100km: number | null;
+  avg_km_per_l: number | null;
+  cost_per_km_cents: number | null;
+  last_l_per_100km: number | null;
+}
+
 export interface VehicleStatus {
   vehicle_id: number;
   insurance: ExpiryInfo;
@@ -32,6 +42,7 @@ export interface VehicleStatus {
   service: ExpiryInfo;
   tires: ExpiryInfo;
   current_km: number | null;
+  fuel: FuelStats | null;
 }
 
 export interface VehicleWithStatus extends Vehicle {
@@ -118,5 +129,19 @@ export interface OdometerReading {
   reading_date: string;
   km: number;
   notes: string | null;
+  created_at: string;
+}
+
+export interface FuelLog {
+  id: number;
+  vehicle_id: number;
+  filled_on: string;
+  km: number | null;
+  milliliters: number;
+  amount_cents: number | null;
+  is_full_tank: boolean;
+  station: string | null;
+  notes: string | null;
+  price_per_liter_cents: number | null;
   created_at: string;
 }

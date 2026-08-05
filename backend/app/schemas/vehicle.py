@@ -53,6 +53,17 @@ class ExpiryInfo(BaseModel):
     last_amount_cents: int | None = None
 
 
+class FuelStats(BaseModel):
+    # Tutte le metriche None finché non ci sono abbastanza pieni per calcolare.
+    fillups_count: int
+    total_amount_cents: int | None = None
+    total_milliliters: int | None = None
+    avg_l_per_100km: float | None = None
+    avg_km_per_l: float | None = None
+    cost_per_km_cents: float | None = None
+    last_l_per_100km: float | None = None
+
+
 class VehicleStatus(BaseModel):
     vehicle_id: int
     insurance: ExpiryInfo
@@ -61,6 +72,7 @@ class VehicleStatus(BaseModel):
     service: ExpiryInfo
     tires: ExpiryInfo
     current_km: int | None = None
+    fuel: FuelStats | None = None
 
 
 class VehicleWithStatus(VehicleOut):

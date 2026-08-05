@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.db import get_db
 from app.models import (
+    FuelLog,
     Inspection,
     Insurance,
     OdometerReading,
@@ -20,6 +21,8 @@ from app.models import (
     Vehicle,
 )
 from app.schemas.events import (
+    FuelLogIn,
+    FuelLogOut,
     InspectionIn,
     InspectionOut,
     InsuranceIn,
@@ -169,5 +172,13 @@ routers = [
         in_schema=OdometerIn,
         out_schema=OdometerOut,
         order_col=OdometerReading.reading_date,
+    ),
+    _build_router(
+        path_segment="fuel-logs",
+        tag="fuel_logs",
+        model=FuelLog,
+        in_schema=FuelLogIn,
+        out_schema=FuelLogOut,
+        order_col=FuelLog.filled_on,
     ),
 ]

@@ -9,6 +9,7 @@ from app.config import settings
 from app.db import get_db
 from app.models import User, Vehicle
 from app.schemas.vehicle import VehicleCreate, VehicleOut, VehicleStatus, VehicleUpdate
+from app.scope import get_visible_vehicle, visible_vehicles
 from app.status_service import compute_status
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
@@ -18,17 +19,17 @@ MAX_PHOTO_SIZE = 5 * 1024 * 1024
 
 
 @router.get("", response_model=list[VehicleOut])
-def list_vehicles(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return db.query(Vehicle).order_by(Vehicle.created_at.desc()).all()
+def list_vehicles(db: Session = Depends(get_db), me: User = Depends(get_current_user)):
+    return visible_vehicles(db, me).order_by(Vehicle.created_at.desc()).all()
 
 
 @router.post("", response_model=VehicleOut, status_code=status.HTTP_201_CREATED)
 def create_vehicle(
     payload: VehicleCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    me: User = Depends(get_current_user),
 ):
-    vehicle = Vehicle(**payload.model_dump())
+    vehicle = Vehicle(owner_id=me.id, **payload.model_dump())
     db.add(vehicle)
     db.commit()
     db.refresh(vehicle)
@@ -37,12 +38,9 @@ def create_vehicle(
 
 @router.get("/{vehicle_id}", response_model=VehicleOut)
 def get_vehicle(
-    vehicle_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    vehicle_id: int, db: Session = Depends(get_db), me: User = Depends(get_current_user)
 ):
-    vehicle = db.get(Vehicle, vehicle_id)
-    if vehicle is None:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
-    return vehicle
+    return get_visible_vehicle(db, me, vehicle_id)
 
 
 @router.patch("/{vehicle_id}", response_model=VehicleOut)
@@ -50,11 +48,9 @@ def update_vehicle(
     vehicle_id: int,
     payload: VehicleUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    me: User = Depends(get_current_user),
 ):
-    vehicle = db.get(Vehicle, vehicle_id)
-    if vehicle is None:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_visible_vehicle(db, me, vehicle_id)
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(vehicle, key, value)
     db.commit()
@@ -64,11 +60,9 @@ def update_vehicle(
 
 @router.delete("/{vehicle_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_vehicle(
-    vehicle_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    vehicle_id: int, db: Session = Depends(get_db), me: User = Depends(get_current_user)
 ):
-    vehicle = db.get(Vehicle, vehicle_id)
-    if vehicle is None:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_visible_vehicle(db, me, vehicle_id)
     db.delete(vehicle)
     db.commit()
 
@@ -78,11 +72,9 @@ async def upload_photo(
     vehicle_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    me: User = Depends(get_current_user),
 ):
-    vehicle = db.get(Vehicle, vehicle_id)
-    if vehicle is None:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
+    vehicle = get_visible_vehicle(db, me, vehicle_id)
     if file.content_type not in ALLOWED_PHOTO_TYPES:
         raise HTTPException(status_code=400, detail="Unsupported image type")
 
@@ -109,9 +101,7 @@ async def upload_photo(
 
 @router.get("/{vehicle_id}/status", response_model=VehicleStatus)
 def vehicle_status(
-    vehicle_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    vehicle_id: int, db: Session = Depends(get_db), me: User = Depends(get_current_user)
 ):
-    vehicle = db.get(Vehicle, vehicle_id)
-    if vehicle is None:
-        raise HTTPException(status_code=404, detail="Vehicle not found")
-    return compute_status(db, vehicle_id)
+    vehicle = get_visible_vehicle(db, me, vehicle_id)
+    return compute_status(db, vehicle.id)

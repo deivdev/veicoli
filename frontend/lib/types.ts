@@ -4,6 +4,7 @@ export type ExpiryStatusName = "ok" | "warning" | "critical" | "unknown";
 
 export interface Vehicle {
   id: number;
+  owner_id: number | null;
   plate: string;
   make: string;
   model: string;
@@ -143,5 +144,44 @@ export interface FuelLog {
   station: string | null;
   notes: string | null;
   price_per_liter_cents: number | null;
+  created_at: string;
+}
+
+export interface Member {
+  id: number;
+  email: string;
+  name: string | null;
+  created_at: string;
+}
+
+export interface Family {
+  id: number;
+  name: string;
+  created_at: string;
+  members: Member[];
+}
+
+export interface FamilyInvite {
+  id: number;
+  code: string;
+  expires_at: string;
+  created_at: string;
+  used_at: string | null;
+}
+
+export interface InvitePreview {
+  family_name: string;
+  valid: boolean;
+}
+
+export interface AuthConfig {
+  registration_enabled: boolean;
+}
+
+export interface CurrentUser {
+  id: number;
+  email: string;
+  name: string | null;
+  family_id: number | null;
   created_at: string;
 }

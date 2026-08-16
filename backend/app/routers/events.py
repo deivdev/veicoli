@@ -20,6 +20,7 @@ from app.models import (
     User,
     Vehicle,
 )
+from app.scope import get_visible_vehicle, visible_vehicles
 from app.schemas.events import (
     FuelLogIn,
     FuelLogOut,
@@ -51,14 +52,28 @@ def _build_router(
 ) -> APIRouter:
     r = APIRouter(tags=[tag])
 
+    def _get_visible_item(db: Session, me: User, item_id: int):
+        """Recupera l'item solo se il suo veicolo è visibile all'utente."""
+        item = (
+            db.query(model)
+            .join(Vehicle, Vehicle.id == model.vehicle_id)
+            .filter(
+                model.id == item_id,
+                Vehicle.id.in_(visible_vehicles(db, me).with_entities(Vehicle.id)),
+            )
+            .first()
+        )
+        if item is None:
+            raise HTTPException(status_code=404, detail="Not found")
+        return item
+
     @r.get(f"/vehicles/{{vehicle_id}}/{path_segment}", response_model=list[out_schema])
     def list_items(
         vehicle_id: int,
         db: Session = Depends(get_db),
-        _: User = Depends(get_current_user),
+        me: User = Depends(get_current_user),
     ):
-        if db.get(Vehicle, vehicle_id) is None:
-            raise HTTPException(status_code=404, detail="Vehicle not found")
+        get_visible_vehicle(db, me, vehicle_id)
         return (
             db.query(model)
             .filter(model.vehicle_id == vehicle_id)
@@ -75,10 +90,9 @@ def _build_router(
         vehicle_id: int,
         payload: in_schema,  # type: ignore[valid-type]
         db: Session = Depends(get_db),
-        _: User = Depends(get_current_user),
+        me: User = Depends(get_current_user),
     ):
-        if db.get(Vehicle, vehicle_id) is None:
-            raise HTTPException(status_code=404, detail="Vehicle not found")
+        get_visible_vehicle(db, me, vehicle_id)
         item = model(vehicle_id=vehicle_id, **payload.model_dump())
         db.add(item)
         db.commit()
@@ -90,11 +104,9 @@ def _build_router(
         item_id: int,
         payload: in_schema,  # type: ignore[valid-type]
         db: Session = Depends(get_db),
-        _: User = Depends(get_current_user),
+        me: User = Depends(get_current_user),
     ):
-        item = db.get(model, item_id)
-        if item is None:
-            raise HTTPException(status_code=404, detail="Not found")
+        item = _get_visible_item(db, me, item_id)
         for key, value in payload.model_dump(exclude_unset=True).items():
             setattr(item, key, value)
         db.commit()
@@ -105,11 +117,9 @@ def _build_router(
     def delete_item(
         item_id: int,
         db: Session = Depends(get_db),
-        _: User = Depends(get_current_user),
+        me: User = Depends(get_current_user),
     ):
-        item = db.get(model, item_id)
-        if item is None:
-            raise HTTPException(status_code=404, detail="Not found")
+        item = _get_visible_item(db, me, item_id)
         db.delete(item)
         db.commit()
 

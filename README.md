@@ -3,7 +3,7 @@
 Webapp self-hosted per gestire manutenzione e scadenze dei tuoi veicoli:
 assicurazione, revisione, tagliando, bollo, gomme (cambi e rotazioni) e
 letture del contachilometri. Alert visivi sulle scadenze, storico completo,
-multi-utente condiviso.
+veicoli condivisi con la tua famiglia.
 
 ## Stack
 
@@ -28,6 +28,29 @@ docker compose up --build
 
 Al primo avvio il backend crea automaticamente l'utente admin con le
 credenziali in `.env`. Accedi dal browser e inizia ad aggiungere veicoli.
+
+## Utenti e famiglie
+
+Ogni veicolo appartiene all'utente che lo ha creato. Un utente può far parte di
+una **famiglia**: in quel caso vede e gestisce i veicoli di tutti i membri.
+Senza famiglia vede solo i propri.
+
+Dalla sezione **Famiglia** crei la famiglia e generi un **link di invito**
+(valido una sola volta, scade dopo 7 giorni). Chi apre il link si registra ed
+entra direttamente in famiglia.
+
+Le due porte d'ingresso sono indipendenti:
+
+| | `REGISTRATION_ENABLED=false` (default) | `=true` |
+|---|---|---|
+| Registrazione **con** link di invito | account creato, entra in famiglia | account creato, entra in famiglia |
+| Registrazione **senza** invito | rifiutata (403) | account creato, senza famiglia |
+
+Un invito valido bypassa sempre il flag: puoi tenere l'istanza chiusa al
+pubblico e continuare a invitare chi vuoi.
+
+Chi esce dalla famiglia (o ne viene rimosso) si porta dietro i propri veicoli e
+smette di vedere quelli degli altri.
 
 ## Deploy su Synology
 
@@ -88,6 +111,13 @@ cd backend
 - Schema DB creato automaticamente all'avvio (`Base.metadata.create_all`).
   Se un domani serviranno migrazioni complesse, la struttura è già pronta per
   Alembic.
+- `create_all` non aggiunge colonne a tabelle già esistenti: le modifiche di
+  schema su DB già popolati stanno in `app/migrate.py`, eseguito a ogni avvio e
+  idempotente. Il backfill iniziale assegna i veicoli senza proprietario al
+  primo utente creato.
+- La visibilità dei veicoli è centralizzata in `app/scope.py`: ogni router passa
+  da lì, così una risorsa non tua risponde `404` invece di rivelare la propria
+  esistenza.
 
 ## Funzionalità fuori dalla V1 (possibili iterazioni)
 

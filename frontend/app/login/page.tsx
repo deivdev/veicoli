@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import type { AuthConfig } from "@/lib/types";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,21 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Senza registrazione libera si entra solo su invito: il link non serve.
+  const [canRegister, setCanRegister] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/proxy/auth/config")
+      .then((r) => (r.ok ? r.json() : { registration_enabled: false }))
+      .then((cfg: AuthConfig) => {
+        if (!cancelled) setCanRegister(cfg.registration_enabled);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -90,12 +106,14 @@ export default function LoginPage() {
           {loading ? "Accesso..." : "Accedi"}
         </button>
 
-        <div className="text-sm text-center text-slate-500">
-          Non hai un account?{" "}
-          <Link href="/register" className="text-slate-900 font-medium hover:underline">
-            Registrati
-          </Link>
-        </div>
+        {canRegister && (
+          <div className="text-sm text-center text-slate-500">
+            Non hai un account?{" "}
+            <Link href="/register" className="text-slate-900 font-medium hover:underline">
+              Registrati
+            </Link>
+          </div>
+        )}
       </form>
     </div>
   );

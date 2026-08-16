@@ -1,3 +1,4 @@
+from app.models.family import Family, FamilyInvite
 from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.models.events import (
@@ -12,6 +13,8 @@ from app.models.events import (
 )
 
 __all__ = [
+    "Family",
+    "FamilyInvite",
     "User",
     "Vehicle",
     "Insurance",

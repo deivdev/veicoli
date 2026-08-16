@@ -7,9 +7,11 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.db import Base, SessionLocal, engine
+from app.migrate import run_migrations
 from app.routers import auth as auth_router
 from app.routers import dashboard as dashboard_router
 from app.routers import events as events_router
+from app.routers import family as family_router
 from app.routers import vehicles as vehicles_router
 from app.seed import seed_admin
 
@@ -26,7 +28,10 @@ async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
+        # Il seed precede il backfill: su un DB nuovo l'admin è il primo utente
+        # e diventa il proprietario di eventuali veicoli senza owner.
         seed_admin(db)
+        run_migrations(db)
 
     yield
 
@@ -48,6 +53,7 @@ def health():
 
 
 app.include_router(auth_router.router, prefix="/api")
+app.include_router(family_router.router, prefix="/api")
 app.include_router(vehicles_router.router, prefix="/api")
 for r in events_router.routers:
     app.include_router(r, prefix="/api")

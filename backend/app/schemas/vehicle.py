@@ -39,6 +39,7 @@ class VehicleUpdate(BaseModel):
 class VehicleOut(VehicleBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    owner_id: int | None
     photo_path: str | None
     created_at: datetime
 

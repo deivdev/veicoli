@@ -22,10 +22,14 @@ async function forward(req: Request, path: string[]) {
   }
 
   const res = await fetch(upstream, { method: req.method, headers, body });
-  const buf = await res.arrayBuffer();
   const outHeaders = new Headers();
   const ct = res.headers.get("content-type");
   if (ct) outHeaders.set("content-type", ct);
+  // 204/304 non ammettono un body: passarlo fa fallire il costruttore Response.
+  if (res.status === 204 || res.status === 304) {
+    return new NextResponse(null, { status: res.status });
+  }
+  const buf = await res.arrayBuffer();
   return new NextResponse(buf, { status: res.status, headers: outHeaders });
 }
 

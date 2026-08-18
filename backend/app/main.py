@@ -28,10 +28,13 @@ async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
-        # Il seed precede il backfill: su un DB nuovo l'admin è il primo utente
-        # e diventa il proprietario di eventuali veicoli senza owner.
-        seed_admin(db)
+        # Le migrazioni precedono il seed: aggiungono le colonne nuove con SQL
+        # grezzo, mentre seed_admin interroga il modello ORM, che le dichiara
+        # già. Ordine inverso su un DB preesistente => "no such column".
         run_migrations(db)
+        # Su un DB nuovo l'admin è il primo utente: il backfill di owner_id
+        # trova la tabella users vuota, esce e riparte al prossimo avvio.
+        seed_admin(db)
 
     yield
 

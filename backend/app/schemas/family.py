@@ -40,6 +40,12 @@ class InviteOut(BaseModel):
     used_at: datetime | None = None
 
 
+class JoinRequest(BaseModel):
+    """Riscatto di un invito da parte di un utente già registrato."""
+
+    code: str = Field(min_length=1, max_length=32)
+
+
 class InvitePreview(BaseModel):
     """Info pubbliche mostrate in pagina di registrazione, senza autenticazione."""
 

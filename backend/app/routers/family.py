@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.db import get_db
-from app.invites import create_invite, find_usable
+from app.invites import consume, create_invite, find_usable
 from app.models import Family, FamilyInvite, User
 from app.schemas.family import (
     FamilyCreate,
@@ -14,6 +14,7 @@ from app.schemas.family import (
     InviteCreate,
     InviteOut,
     InvitePreview,
+    JoinRequest,
     MemberOut,
 )
 
@@ -152,6 +153,34 @@ def leave_family(db: Session = Depends(get_db), me: User = Depends(get_current_u
     if not _members(db, family.id):
         db.delete(family)
     db.commit()
+
+
+@router.post("/join", response_model=FamilyOut)
+def join_family(
+    payload: JoinRequest,
+    db: Session = Depends(get_db),
+    me: User = Depends(get_current_user),
+):
+    """Riscatta un invito con un account che esiste già.
+
+    La registrazione accetta un invite_code, ma chi si è iscritto prima di
+    ricevere l'invito resterebbe altrimenti senza modo di entrare.
+    """
+    if me.family_id is not None:
+        raise HTTPException(status_code=409, detail="You already belong to a family")
+
+    invite = find_usable(db, payload.code)
+    if invite is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired invite code")
+
+    family = db.get(Family, invite.family_id)
+    if family is None:
+        raise HTTPException(status_code=400, detail="Invalid or expired invite code")
+
+    me.family_id = family.id
+    consume(db, invite, me.id)
+    db.commit()
+    return _family_out(db, family)
 
 
 @router.get("/invites/{code}/preview", response_model=InvitePreview)

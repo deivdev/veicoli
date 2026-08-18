@@ -18,6 +18,7 @@ function formatDate(iso: string) {
 export default function FamilyPage() {
   const qc = useQueryClient();
   const [newName, setNewName] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const [copied, setCopied] = useState<number | null>(null);
 
   const me = useQuery<CurrentUser>({
@@ -52,6 +53,18 @@ export default function FamilyPage() {
       apiClient<Family>("/family", { method: "POST", body: JSON.stringify({ name }) }),
     onSuccess: () => {
       setNewName("");
+      refresh();
+    },
+  });
+
+  const joinFamily = useMutation({
+    mutationFn: (code: string) =>
+      apiClient<Family>("/family/join", {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      }),
+    onSuccess: () => {
+      setJoinCode("");
       refresh();
     },
   });
@@ -126,6 +139,40 @@ export default function FamilyPage() {
           </Button>
           {createFamily.isError && (
             <p className="text-sm text-crit">Errore nella creazione</p>
+          )}
+        </form>
+
+        <div className="flex items-center gap-3 my-6">
+          <div className="h-px flex-1 bg-slate-200" />
+          <span className="text-sm text-slate-400">oppure</span>
+          <div className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const code = joinCode.trim().toUpperCase();
+            if (code) joinFamily.mutate(code);
+          }}
+          className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4"
+        >
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Hai un codice di invito?
+            </label>
+            <Input
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+              placeholder="ABCD123456"
+              className="font-mono tracking-wide"
+              required
+            />
+          </div>
+          <Button type="submit" variant="secondary" disabled={joinFamily.isPending}>
+            {joinFamily.isPending ? "Verifica..." : "Entra nella famiglia"}
+          </Button>
+          {joinFamily.isError && (
+            <p className="text-sm text-crit">Codice non valido o scaduto</p>
           )}
         </form>
       </div>

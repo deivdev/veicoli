@@ -198,3 +198,57 @@ def test_invite_bypasses_disabled_registration(client, closed_registration):
     assert client.get("/api/auth/config").json() == {"registration_enabled": False}
     assert _register(client, "nobody@example.com").status_code == 403
     assert _register(client, "bob@example.com", invite_code=code).status_code == 201
+
+
+def test_existing_user_joins_with_invite_code(client):
+    """Il caso di chi si registra prima di ricevere l'invito."""
+    alice = _auth(client, "alice@example.com")
+    vid = _vehicle(client, alice, "AA111AA")
+    client.post("/api/family", headers=alice, json={"name": "Rossi"})
+
+    # Bob esiste già e non è in nessuna famiglia.
+    bob = _auth(client, "bob@example.com")
+    assert client.get("/api/vehicles", headers=bob).json() == []
+
+    code = client.post("/api/family/invites", headers=alice, json={}).json()["code"]
+    r = client.post("/api/family/join", headers=bob, json={"code": code})
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "Rossi"
+
+    # Da qui in poi Bob vede i veicoli della famiglia.
+    assert [v["id"] for v in client.get("/api/vehicles", headers=bob).json()] == [vid]
+    members = client.get("/api/family", headers=alice).json()["members"]
+    assert {m["email"] for m in members} == {"alice@example.com", "bob@example.com"}
+
+    # L'invito è consumato: non vale per un terzo utente.
+    carl = _auth(client, "carl@example.com")
+    assert client.post("/api/family/join", headers=carl, json={"code": code}).status_code == 400
+
+
+def test_join_is_rejected_when_already_in_a_family(client):
+    alice = _auth(client, "alice@example.com")
+    client.post("/api/family", headers=alice, json={"name": "Rossi"})
+
+    bob = _auth(client, "bob@example.com")
+    client.post("/api/family", headers=bob, json={"name": "Bianchi"})
+
+    code = client.post("/api/family/invites", headers=alice, json={}).json()["code"]
+    assert client.post("/api/family/join", headers=bob, json={"code": code}).status_code == 409
+
+    # L'invito resta spendibile: il rifiuto non lo consuma.
+    assert len(client.get("/api/family/invites", headers=alice).json()) == 1
+
+
+def test_join_rejects_invalid_and_revoked_codes(client):
+    alice = _auth(client, "alice@example.com")
+    client.post("/api/family", headers=alice, json={"name": "Rossi"})
+    bob = _auth(client, "bob@example.com")
+
+    assert client.post("/api/family/join", headers=bob, json={"code": "NOPE123456"}).status_code == 400
+
+    inv = client.post("/api/family/invites", headers=alice, json={}).json()
+    client.delete(f"/api/family/invites/{inv['id']}", headers=alice)
+    assert client.post("/api/family/join", headers=bob, json={"code": inv["code"]}).status_code == 400
+
+    # Bob resta fuori da ogni famiglia.
+    assert client.get("/api/auth/me", headers=bob).json()["family_id"] is None

@@ -14,6 +14,9 @@ export async function apiClient<T = unknown>(
     ...init,
     headers,
     credentials: "include",
+    // Il refetch dopo una mutation deve arrivare al backend: senza no-store il
+    // browser può servire la lista vecchia dalla cache HTTP.
+    cache: "no-store",
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");

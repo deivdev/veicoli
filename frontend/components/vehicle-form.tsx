@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DateInput } from "./date-input";
 import { Button, Field, Input, Select, Textarea } from "./ui";
 import type { Vehicle, VehicleType, FuelType } from "@/lib/types";
 
@@ -111,10 +112,9 @@ export function VehicleForm({
           <Input value={values.vin} onChange={(e) => setField("vin", e.target.value)} />
         </Field>
         <Field label="Data immatricolazione">
-          <Input
-            type="date"
+          <DateInput
             value={values.registration_date}
-            onChange={(e) => setField("registration_date", e.target.value)}
+            onChange={(iso) => setField("registration_date", iso)}
           />
         </Field>
       </div>

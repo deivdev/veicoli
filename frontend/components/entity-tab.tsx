@@ -12,6 +12,7 @@ import {
   litersFromInput,
   litersToInput,
 } from "@/lib/format";
+import { DateInput } from "./date-input";
 import { Button, Field, Input, Select, Textarea } from "./ui";
 
 export type FieldType =
@@ -304,12 +305,16 @@ function EntityDialog<T>({
                   <option value="true">Sì</option>
                   <option value="false">No</option>
                 </Select>
+              ) : f.type === "date" ? (
+                <DateInput
+                  required={f.required}
+                  value={values[f.key] ?? ""}
+                  onChange={(iso) => setValues({ ...values, [f.key]: iso })}
+                />
               ) : (
                 <Input
                   type={
-                    f.type === "date"
-                      ? "date"
-                      : f.type === "number" || f.type === "money" || f.type === "liters"
+                    f.type === "number" || f.type === "money" || f.type === "liters"
                       ? "number"
                       : "text"
                   }

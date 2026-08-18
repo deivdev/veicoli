@@ -21,13 +21,21 @@ async function forward(req: Request, path: string[]) {
     body = await req.arrayBuffer();
   }
 
-  const res = await fetch(upstream, { method: req.method, headers, body });
+  // Next memorizza i fetch server-side nel Data Cache: senza no-store una GET
+  // già vista tornerebbe dalla cache anche dopo una DELETE.
+  const res = await fetch(upstream, { method: req.method, headers, body, cache: "no-store" });
   const outHeaders = new Headers();
   const ct = res.headers.get("content-type");
   if (ct) outHeaders.set("content-type", ct);
+  // Nessuna risposta dell'API va in cache nel browser: dopo una mutation il
+  // refetch di React Query deve colpire il backend, non la cache HTTP.
+  outHeaders.set("cache-control", "no-store, must-revalidate");
   // 204/304 non ammettono un body: passarlo fa fallire il costruttore Response.
   if (res.status === 204 || res.status === 304) {
-    return new NextResponse(null, { status: res.status });
+    return new NextResponse(null, {
+      status: res.status,
+      headers: { "cache-control": "no-store, must-revalidate" },
+    });
   }
   const buf = await res.arrayBuffer();
   return new NextResponse(buf, { status: res.status, headers: outHeaders });

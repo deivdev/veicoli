@@ -43,3 +43,33 @@ export function formatLiters(ml: number | null | undefined): string {
   if (ml == null) return "—";
   return `${(ml / 1000).toLocaleString("it-IT", { maximumFractionDigits: 2 })} L`;
 }
+
+// Le date viaggiano sempre in ISO (yyyy-mm-dd) verso il backend, ma gli input
+// nativi type="date" mostrano il formato del locale del browser (spesso mm/dd/yyyy).
+// Questi due helper alimentano DateInput, che usa un campo testo in gg/mm/aaaa.
+export function isoToItDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  const [, y, mo, d] = m;
+  return `${d}/${mo}/${y}`;
+}
+
+export function itDateToIso(value: string): string {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value.trim());
+  if (!m) return "";
+  const [, d, mo, y] = m;
+  const day = Number(d);
+  const month = Number(mo);
+  const year = Number(y);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  // Scarta date inesistenti tipo 31/02: il rollover di Date le sposterebbe.
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return "";
+  }
+  return `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
